@@ -57,6 +57,22 @@ def _resolve_mapping(column_mapping: Mapping[str, str] | None) -> dict[str, str]
     return mapping
 
 
+def _resolve_source_columns(
+    mapping: Mapping[str, str], available_columns: pd.Index
+) -> dict[str, str]:
+    resolved = dict(mapping)
+    for logical_name, source_column in mapping.items():
+        if source_column in available_columns:
+            continue
+        aliases = config.COLUMN_ALIASES.get(logical_name, ())
+        replacement = next(
+            (alias for alias in aliases if alias in available_columns), None
+        )
+        if replacement is not None:
+            resolved[logical_name] = replacement
+    return resolved
+
+
 def load_dataset(
     data_path: str | Path | None = None,
     column_mapping: Mapping[str, str] | None = None,
@@ -74,7 +90,9 @@ def load_dataset(
         raise FileNotFoundError(f"Dataset file was not found: {path}")
 
     raw = pd.read_csv(path)
-    mapping = _resolve_mapping(column_mapping)
+    mapping = _resolve_source_columns(
+        _resolve_mapping(column_mapping), raw.columns
+    )
     missing_columns = [
         source_column
         for source_column in mapping.values()

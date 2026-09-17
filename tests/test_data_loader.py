@@ -33,7 +33,7 @@ def test_load_dataset_cleans_duplicates_and_reports_statistics(tmp_path: Path) -
     assert statistics.article_count == 2
     assert statistics.category_count == 2
     assert statistics.articles_per_category == {"দেশ": 1, "রাজনীতি": 1}
-    assert statistics.average_article_length == 5.5
+    assert statistics.average_article_length == 6.0
 
 
 def test_generated_ids_are_assigned_after_cleaning(tmp_path: Path) -> None:

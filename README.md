@@ -4,7 +4,7 @@ This repository will compare explainable Bangla news retrieval using TF-IDF, pre
 
 ## Phase 1: Dataset Loader
 
-The current implementation provides the project structure and a reusable CSV loader in `src/data_loader.py`. It does not yet perform Bangla linguistic preprocessing or search.
+The current implementation provides the project structure, a reusable CSV loader in `src/data_loader.py`, and explainable TF-IDF and mean-pooled Word2Vec search modules. Bangla linguistic preprocessing remains a shared integration step.
 
 ### Expected dataset
 
@@ -29,7 +29,7 @@ The loader supports renamed source columns through the `column_mapping` argument
 document_id, title, content, category, text
 ```
 
-`text` is the unprocessed combination of title and content. Unicode normalization, tokenization, punctuation handling, and stopword removal belong to the shared preprocessing phase.
+`text` is the unprocessed combination of title and content. The downloaded corpus uses `text` instead of `content`; the loader recognizes this through the configured content alias. Unicode normalization, tokenization, punctuation handling, and stopword removal belong to the shared preprocessing phase.
 
 ### Document IDs
 
@@ -59,10 +59,10 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Run the Phase 1 tests:
+Run the focused tests:
 
 ```powershell
-pytest tests/test_data_loader.py
+pytest tests/test_data_loader.py tests/test_tfidf_search.py tests/test_word2vec_search.py
 ```
 
 ## Planned phases
@@ -72,3 +72,15 @@ pytest tests/test_data_loader.py
 3. TF-IDF baseline and search tests
 4. Custom and pretrained Word2Vec search
 5. Evaluation, comparison, error analysis, visualization, and application interface
+
+## Retrieval modules
+
+`src/tfidf_search.py` provides `TFIDFSearcher`, which fits a scikit-learn TF-IDF matrix and ranks the shared document contract with cosine similarity. `src/word2vec_search.py` provides mean-pooled Word2Vec vectors, OOV-safe query handling, and the same ranked result columns.
+
+Train the custom model with:
+
+```powershell
+python -m src.train_word2vec
+```
+
+The model is saved to `models/word2vec_custom/bangla_news.model`. A pretrained model is not downloaded automatically; its path will be configured explicitly when the application integration is added.
