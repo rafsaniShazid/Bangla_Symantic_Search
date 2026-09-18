@@ -57,10 +57,11 @@ def train_custom_word2vec(
     print(f"Vocabulary size: {len(model.wv.key_to_index)}")
     print(f"Embedding dimension: {model.wv.vector_size}")
     sample_words = list(model.wv.key_to_index)[:5]
-    print(f"Sample vocabulary: {sample_words}")
+    # ascii() keeps diagnostics printable on Windows consoles using cp1252.
+    print(f"Sample vocabulary: {ascii(sample_words)}")
     for word in sample_words[:3]:
         similar = model.wv.most_similar(word, topn=3)
-        print(f"Similar to {word}: {similar}")
+        print(f"Similar to {ascii(word)}: {ascii(similar)}")
     return model
 
 
