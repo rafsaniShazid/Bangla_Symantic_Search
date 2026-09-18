@@ -16,6 +16,15 @@ from src.embedding_explorer import (
     embedding_neighbors,
     embedding_summary,
 )
+from src.evaluation_data import (
+    count_completed_judgements,
+    load_evaluation_queries,
+)
+from src.evaluation_runner import (
+    evaluate_methods,
+    summarize_by_query_type,
+    summarize_evaluation,
+)
 from src.explanations import explain_method
 from src.system import (
     METHOD_CUSTOM_W2V,
@@ -270,8 +279,8 @@ with st.sidebar:
     st.caption(f"Documents loaded: {len(system.documents)}")
     st.caption(f"Methods ready: {len(available_methods)}")
 
-search_tab, compare_tab, embedding_tab = st.tabs(
-    ["Search", "Compare Models", "Embeddings"]
+search_tab, compare_tab, embedding_tab, evaluation_tab = st.tabs(
+    ["Search", "Compare Models", "Embeddings", "Evaluation"]
 )
 
 with search_tab:
@@ -499,3 +508,169 @@ with embedding_tab:
                         use_container_width=True,
                         hide_index=True,
                     )
+
+with evaluation_tab:
+    st.subheader("Retrieval Evaluation")
+    st.caption(
+        "Evaluate judged queries using Precision@K, Recall@K, and MRR."
+    )
+
+    try:
+        evaluation_queries = load_evaluation_queries()
+    except Exception as error:
+        st.error(f"Could not load evaluation queries: {error}")
+    else:
+        total_queries = len(evaluation_queries)
+        judged_queries = count_completed_judgements(evaluation_queries)
+
+        metric_1, metric_2 = st.columns(2)
+        metric_1.metric("Evaluation queries", total_queries)
+        metric_2.metric("Judged queries", judged_queries)
+
+        status_table = evaluation_queries[
+            [
+                "query_id",
+                "query",
+                "query_type",
+                "relevant_document_ids",
+            ]
+        ].copy()
+        status_table["status"] = status_table["relevant_document_ids"].map(
+            lambda value: "Judged" if str(value).strip() else "Pending"
+        )
+        st.dataframe(
+            status_table,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        if judged_queries == 0:
+            st.info(
+                "The 24 evaluation queries are prepared, but relevance "
+                "judgements are still blank. Add real document IDs to "
+                "`data/evaluation/qrels.csv` before reporting evaluation scores."
+            )
+        else:
+            evaluation_k = st.slider(
+                "Evaluation K",
+                min_value=1,
+                max_value=10,
+                value=5,
+                key="evaluation_k",
+            )
+
+            evaluation_alpha = st.slider(
+                "Hybrid TF-IDF weight (alpha)",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.5,
+                step=0.05,
+                key="evaluation_alpha",
+            )
+
+            evaluation_methods = st.multiselect(
+                "Methods to evaluate",
+                options=available_methods,
+                default=available_methods,
+                format_func=lambda method: METHOD_LABELS.get(method, method),
+                key="evaluation_methods",
+            )
+
+            if st.button(
+                "Run evaluation",
+                type="primary",
+                use_container_width=True,
+                key="evaluation_button",
+            ):
+                if not evaluation_methods:
+                    st.warning("Select at least one retrieval method.")
+                else:
+                    try:
+                        details = evaluate_methods(
+                            system=system,
+                            queries=evaluation_queries,
+                            methods=evaluation_methods,
+                            k=evaluation_k,
+                            alpha=evaluation_alpha,
+                        )
+                        summary = summarize_evaluation(
+                            details,
+                            k=evaluation_k,
+                        )
+                        by_type = summarize_by_query_type(
+                            details,
+                            k=evaluation_k,
+                        )
+                    except Exception as error:
+                        st.error(f"Evaluation failed: {error}")
+                    else:
+                        precision_column = f"precision@{evaluation_k}"
+                        recall_column = f"recall@{evaluation_k}"
+
+                        display_summary = summary.copy()
+                        display_summary["method"] = display_summary["method"].map(
+                            lambda method: METHOD_LABELS.get(method, method)
+                        )
+                        for column in [
+                            precision_column,
+                            recall_column,
+                            "mrr",
+                        ]:
+                            display_summary[column] = display_summary[column].map(
+                                lambda value: round(float(value), 4)
+                            )
+
+                        st.markdown("#### Overall model performance")
+                        st.dataframe(
+                            display_summary,
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+
+                        chart_data = display_summary.set_index("method")[
+                            [
+                                precision_column,
+                                recall_column,
+                                "mrr",
+                            ]
+                        ]
+                        st.bar_chart(chart_data)
+
+                        st.markdown("#### Performance by query type")
+                        display_by_type = by_type.copy()
+                        display_by_type["method"] = display_by_type["method"].map(
+                            lambda method: METHOD_LABELS.get(method, method)
+                        )
+                        for column in [
+                            precision_column,
+                            recall_column,
+                            "mrr",
+                        ]:
+                            display_by_type[column] = display_by_type[column].map(
+                                lambda value: round(float(value), 4)
+                            )
+
+                        st.dataframe(
+                            display_by_type,
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+
+                        with st.expander("Per-query evaluation details"):
+                            display_details = details.copy()
+                            display_details["method"] = display_details["method"].map(
+                                lambda method: METHOD_LABELS.get(method, method)
+                            )
+                            for column in [
+                                precision_column,
+                                recall_column,
+                                "reciprocal_rank",
+                            ]:
+                                display_details[column] = display_details[column].map(
+                                    lambda value: round(float(value), 4)
+                                )
+                            st.dataframe(
+                                display_details,
+                                use_container_width=True,
+                                hide_index=True,
+                            )
