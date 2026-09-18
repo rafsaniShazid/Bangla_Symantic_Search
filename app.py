@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pandas as pd
 import streamlit as st
 
 import config
@@ -15,6 +16,7 @@ from src.embedding_explorer import (
     embedding_neighbors,
     embedding_summary,
 )
+from src.explanations import explain_method
 from src.system import (
     METHOD_CUSTOM_W2V,
     METHOD_HYBRID_CUSTOM,
@@ -119,6 +121,91 @@ def render_comparison_grid(comparison, methods):
                         use_container_width=True,
                         hide_index=True,
                     )
+
+
+def render_search_explanation(system, query, method, results, alpha):
+    """Render compact, model-specific explanation details."""
+
+    details = explain_method(system, query, method)
+
+    with st.expander("How this search was interpreted"):
+        tfidf_details = details["tfidf"]
+        word2vec_details = details["word2vec"]
+
+        if tfidf_details is not None:
+            st.markdown("**TF-IDF query processing**")
+            st.write(
+                "Processed tokens:",
+                ", ".join(tfidf_details["tokens"]) or "None",
+            )
+            st.write(
+                "Matched vocabulary tokens:",
+                ", ".join(tfidf_details["matched_tokens"]) or "None",
+            )
+            st.write(
+                "Unmatched tokens:",
+                ", ".join(tfidf_details["unmatched_tokens"]) or "None",
+            )
+
+            if tfidf_details["active_features"]:
+                feature_table = pd.DataFrame(
+                    tfidf_details["active_features"]
+                )
+                feature_table["weight"] = feature_table["weight"].map(
+                    lambda value: round(float(value), 4)
+                )
+                st.dataframe(
+                    feature_table,
+                    use_container_width=True,
+                    hide_index=True,
+                )
+
+        if word2vec_details is not None:
+            st.markdown("**Word2Vec vocabulary coverage**")
+            st.write(
+                "Known words:",
+                ", ".join(word2vec_details["known_words"]) or "None",
+            )
+            st.write(
+                "OOV words:",
+                ", ".join(word2vec_details["oov_words"]) or "None",
+            )
+            st.progress(
+                float(word2vec_details["coverage"]),
+                text=(
+                    "Vocabulary coverage: "
+                    f"{word2vec_details['coverage'] * 100:.1f}%"
+                ),
+            )
+
+        if method in HYBRID_METHODS and not results.empty:
+            st.markdown("**Hybrid score breakdown**")
+            st.caption(
+                f"Hybrid = {alpha:.2f} × TF-IDF + "
+                f"{1.0 - alpha:.2f} × Word2Vec"
+            )
+            breakdown = results[
+                [
+                    "rank",
+                    "document_id",
+                    "tfidf_score",
+                    "word2vec_score",
+                    "hybrid_score",
+                ]
+            ].copy()
+            for column in [
+                "tfidf_score",
+                "word2vec_score",
+                "hybrid_score",
+            ]:
+                breakdown[column] = breakdown[column].map(
+                    lambda value: round(float(value), 4)
+                )
+            st.dataframe(
+                breakdown,
+                use_container_width=True,
+                hide_index=True,
+            )
 
 
 st.set_page_config(
@@ -257,6 +344,17 @@ with search_tab:
                         use_container_width=True,
                         hide_index=True,
                     )
+
+                try:
+                    render_search_explanation(
+                        system=system,
+                        query=query,
+                        method=selected_method,
+                        results=results,
+                        alpha=alpha,
+                    )
+                except Exception as error:
+                    st.caption(f"Explanation unavailable: {error}")
 
 with compare_tab:
     st.subheader("Compare Models")
