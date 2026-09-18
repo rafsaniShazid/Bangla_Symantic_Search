@@ -1,0 +1,17 @@
+name: nlp312
+
+channels:
+  - conda-forge
+
+dependencies:
+  - python=3.12
+  - pip
+  - numpy
+  - pandas
+  - scikit-learn
+  - scipy
+  - matplotlib
+  - pip:
+      - gensim>=4.3,<5
+      - streamlit>=1.40,<2
+      - pytest>=8,<10
