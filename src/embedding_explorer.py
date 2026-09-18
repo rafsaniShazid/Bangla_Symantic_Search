@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from src.pretrained_loader import (
+from src.word2vec_search import (
     model_summary,
     most_similar_words,
 )

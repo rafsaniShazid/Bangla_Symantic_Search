@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.preprocessing import preprocess_text, tokenize_bangla
-from src.pretrained_loader import get_keyed_vectors
+from src.word2vec_search import get_keyed_vectors
 
 
 def explain_tfidf_query(searcher, query: str) -> dict[str, Any]:

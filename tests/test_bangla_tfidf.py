@@ -4,7 +4,7 @@ import unittest
 
 import pandas as pd
 
-from src.bangla_tfidf_search import BanglaTFIDFSearcher
+from src.tfidf_search import BanglaTFIDFSearcher
 
 
 class TestBanglaTFIDFSearcher(unittest.TestCase):

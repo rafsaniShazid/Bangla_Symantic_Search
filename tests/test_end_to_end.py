@@ -9,7 +9,7 @@ import pandas as pd
 from gensim.models import KeyedVectors
 
 from src.data_loader import load_dataset
-from src.dataset_pipeline import prepare_dataset
+from src.data_loader import prepare_dataset
 from src.evaluation_runner import (
     evaluate_methods,
     summarize_evaluation,

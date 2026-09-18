@@ -10,6 +10,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 import config
+from src.preprocessing import preprocess_text
 
 
 RESULT_COLUMNS = [
@@ -115,3 +116,50 @@ class TFIDFSearcher:
         from joblib import load
 
         return load(Path(directory) / "tfidf_searcher.joblib")
+
+
+class BanglaTFIDFSearcher(TFIDFSearcher):
+    """Apply shared Bangla preprocessing to the existing TF-IDF ranking."""
+
+    def __init__(
+        self,
+        ngram_range: tuple[int, int] = config.TFIDF_NGRAM_RANGE,
+        min_df: int | float = config.TFIDF_MIN_DF,
+        max_df: int | float = config.TFIDF_MAX_DF,
+    ) -> None:
+        super().__init__(ngram_range=ngram_range, min_df=min_df, max_df=max_df)
+        # Bangla combining characters must stay attached to their words.
+        self.vectorizer = TfidfVectorizer(
+            ngram_range=ngram_range,
+            min_df=min_df,
+            max_df=max_df,
+            tokenizer=str.split,
+            token_pattern=None,
+            preprocessor=None,
+            lowercase=False,
+        )
+
+    def fit(
+        self,
+        documents: pd.DataFrame | Iterable[str],
+        text_column: str = "text",
+    ) -> "BanglaTFIDFSearcher":
+        """Preprocess documents before fitting the shared TF-IDF searcher."""
+
+        if isinstance(documents, pd.DataFrame):
+            if text_column not in documents.columns:
+                raise ValueError(f"Document text column not found: {text_column}")
+            prepared = documents.copy()
+            prepared["_tfidf_text"] = (
+                prepared[text_column].fillna("").astype(str).map(preprocess_text)
+            )
+            super().fit(prepared, text_column="_tfidf_text")
+        else:
+            prepared_texts = [preprocess_text(str(document)) for document in documents]
+            super().fit(prepared_texts, text_column="_tfidf_text")
+        return self
+
+    def search(self, query: str, top_k: int = config.DEFAULT_TOP_K) -> pd.DataFrame:
+        """Preprocess the query before inherited cosine ranking."""
+
+        return super().search(preprocess_text(query), top_k=top_k)

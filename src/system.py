@@ -7,11 +7,10 @@ from pathlib import Path
 import pandas as pd
 
 import config
-from src.bangla_tfidf_search import BanglaTFIDFSearcher
 from src.data_loader import load_dataset
 from src.hybrid_search import HybridSearcher
 from src.preprocessing import tokenize_bangla
-from src.pretrained_loader import load_pretrained_word2vec
+from src.tfidf_search import BanglaTFIDFSearcher
 from src.word2vec_search import Word2VecSearcher, load_word2vec_model
 
 
@@ -143,7 +142,7 @@ def build_search_system(
 
     pretrained_model = None
     if pretrained_model_path is not None:
-        pretrained_model = load_pretrained_word2vec(pretrained_model_path)
+        pretrained_model = load_word2vec_model(pretrained_model_path)
 
     return SemanticSearchSystem(
         documents=documents,

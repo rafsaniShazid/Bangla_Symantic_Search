@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from gensim.models import KeyedVectors
 
-from src.bangla_tfidf_search import BanglaTFIDFSearcher
+from src.tfidf_search import BanglaTFIDFSearcher
 from src.explanations import (
     explain_method,
     explain_tfidf_query,

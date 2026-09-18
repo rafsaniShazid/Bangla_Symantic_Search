@@ -10,6 +10,7 @@ from typing import Mapping
 import pandas as pd
 
 import config
+from src.preprocessing import preprocess_many
 
 
 class DatasetError(ValueError):
@@ -157,3 +158,38 @@ def summarize_dataset(documents: pd.DataFrame) -> DatasetStatistics:
         articles_per_category=distribution,
         average_article_length=float(lengths.mean()) if len(lengths) else 0.0,
     )
+
+
+DEFAULT_PROCESSED_PATH = config.PROCESSED_DATA_DIR / "news_processed.csv"
+
+
+def add_processed_text(documents: pd.DataFrame) -> pd.DataFrame:
+    """Add the shared processed-text column without changing the input frame."""
+
+    required = set(config.OUTPUT_COLUMNS)
+    missing = required - set(documents.columns)
+    if missing:
+        raise ValueError(
+            "Documents are missing required columns: "
+            + ", ".join(sorted(missing))
+        )
+
+    processed = documents.copy()
+    processed["processed_text"] = preprocess_many(
+        processed["text"].fillna("").astype(str).tolist()
+    )
+    return processed
+
+
+def prepare_dataset(
+    data_path: str | Path | None = None,
+    output_path: str | Path = DEFAULT_PROCESSED_PATH,
+) -> tuple[pd.DataFrame, DatasetStatistics]:
+    """Load, preprocess, and save a news corpus as a processed CSV."""
+
+    documents, statistics = load_dataset(data_path)
+    processed = add_processed_text(documents)
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    processed.to_csv(destination, index=False, encoding="utf-8-sig")
+    return processed, statistics

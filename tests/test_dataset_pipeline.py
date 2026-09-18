@@ -6,7 +6,7 @@ import unittest
 
 import pandas as pd
 
-from src.dataset_pipeline import add_processed_text, prepare_dataset
+from src.data_loader import add_processed_text, prepare_dataset
 
 
 class TestDatasetPipeline(unittest.TestCase):

@@ -7,8 +7,8 @@ import unittest
 import numpy as np
 from gensim.models import KeyedVectors, Word2Vec
 
-from src.pretrained_loader import (
-    load_pretrained_word2vec,
+from src.word2vec_search import (
+    load_word2vec_model,
     model_summary,
     most_similar_words,
 )
@@ -35,7 +35,7 @@ class TestPretrainedWord2VecLoader(unittest.TestCase):
             vectors = self._build_vectors()
             vectors.save(str(path))
 
-            loaded = load_pretrained_word2vec(path)
+            loaded = load_word2vec_model(path)
 
             self.assertEqual(loaded.vector_size, 3)
             self.assertIn("অর্থনীতি", loaded.key_to_index)
@@ -46,7 +46,7 @@ class TestPretrainedWord2VecLoader(unittest.TestCase):
             vectors = self._build_vectors()
             vectors.save_word2vec_format(str(path), binary=False)
 
-            loaded = load_pretrained_word2vec(path)
+            loaded = load_word2vec_model(path)
 
             self.assertEqual(loaded.vector_size, 3)
             self.assertIn("বাজেট", loaded.key_to_index)
@@ -57,7 +57,7 @@ class TestPretrainedWord2VecLoader(unittest.TestCase):
             vectors = self._build_vectors()
             vectors.save_word2vec_format(str(path), binary=True)
 
-            loaded = load_pretrained_word2vec(path)
+            loaded = load_word2vec_model(path)
 
             self.assertEqual(loaded.vector_size, 3)
             self.assertIn("ক্রিকেট", loaded.key_to_index)
@@ -79,7 +79,7 @@ class TestPretrainedWord2VecLoader(unittest.TestCase):
             )
             model.save(str(path))
 
-            loaded = load_pretrained_word2vec(path)
+            loaded = load_word2vec_model(path)
 
             self.assertEqual(loaded.wv.vector_size, 10)
             self.assertIn("অর্থনীতি", loaded.wv.key_to_index)
@@ -101,7 +101,7 @@ class TestPretrainedWord2VecLoader(unittest.TestCase):
             path.write_text("not a model", encoding="utf-8")
 
             with self.assertRaises(ValueError):
-                load_pretrained_word2vec(path)
+                load_word2vec_model(path)
 
 
 if __name__ == "__main__":

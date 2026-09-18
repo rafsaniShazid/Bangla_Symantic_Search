@@ -22,12 +22,13 @@ RESULT_COLUMNS = [
 Tokenize = Callable[[str], Sequence[str]]
 
 
-def _keyed_vectors(model):
+def get_keyed_vectors(model):
+    """Return vectors from either a Word2Vec model or KeyedVectors."""
     return getattr(model, "wv", model)
 
 
 def _known_words(model, tokens: Iterable[str]) -> list[str]:
-    keyed_vectors = _keyed_vectors(model)
+    keyed_vectors = get_keyed_vectors(model)
     vocabulary = getattr(keyed_vectors, "key_to_index", None)
     if vocabulary is None:
         vocabulary = getattr(keyed_vectors, "vocab", {})
@@ -37,7 +38,7 @@ def _known_words(model, tokens: Iterable[str]) -> list[str]:
 def get_document_vector(tokens: Iterable[str], model) -> np.ndarray | None:
     """Return a mean-pooled vector, or ``None`` when all tokens are OOV."""
 
-    keyed_vectors = _keyed_vectors(model)
+    keyed_vectors = get_keyed_vectors(model)
     known_words = _known_words(model, tokens)
     if not known_words:
         return None
@@ -91,7 +92,7 @@ class Word2VecSearcher:
             vector = get_document_vector(tokens, model)
             vectors.append(vector)
 
-        dimensions = getattr(_keyed_vectors(model), "vector_size", None)
+        dimensions = getattr(get_keyed_vectors(model), "vector_size", None)
         if dimensions is None:
             first_vector = next((vector for vector in vectors if vector is not None), None)
             if first_vector is None:
@@ -133,19 +134,50 @@ class Word2VecSearcher:
 
 
 def load_word2vec_model(model_path: str | Path):
-    """Load a native Gensim Word2Vec or KeyedVectors model from disk."""
+    """Load native Gensim models or pretrained word2vec text/binary vectors."""
 
     from gensim.models import KeyedVectors, Word2Vec
 
     path = Path(model_path)
     if not path.is_file():
         raise FileNotFoundError(f"Word2Vec model was not found: {path}")
-    try:
+    suffix = path.suffix.lower()
+    if suffix not in SUPPORTED_MODEL_SUFFIXES:
+        raise ValueError(
+            f"Unsupported Word2Vec model format: {suffix or '<no extension>'}. "
+            f"Supported formats: {', '.join(sorted(SUPPORTED_MODEL_SUFFIXES))}"
+        )
+    if suffix == ".model":
         return Word2Vec.load(str(path))
-    except Exception as word2vec_error:
-        try:
-            return KeyedVectors.load(str(path), mmap="r")
-        except Exception as keyed_vectors_error:
-            raise ValueError(
-                f"Could not load a Gensim Word2Vec model from {path}."
-            ) from keyed_vectors_error
+    if suffix == ".kv":
+        return KeyedVectors.load(str(path), mmap="r")
+    return KeyedVectors.load_word2vec_format(
+        str(path), binary=suffix == ".bin"
+    )
+
+
+SUPPORTED_MODEL_SUFFIXES = {".model", ".kv", ".vec", ".txt", ".bin"}
+
+
+def model_summary(model) -> dict[str, int]:
+    """Return vocabulary size and vector dimension for display."""
+
+    vectors = get_keyed_vectors(model)
+    return {
+        "vocabulary_size": len(vectors.key_to_index),
+        "vector_size": int(vectors.vector_size),
+    }
+
+
+def most_similar_words(model, word: str, topn: int = 5) -> list[tuple[str, float]]:
+    """Return nearby words, or an empty list for an unknown word."""
+
+    if topn < 1:
+        raise ValueError("topn must be at least 1.")
+    vectors = get_keyed_vectors(model)
+    if word not in vectors.key_to_index:
+        return []
+    return [
+        (candidate, float(score))
+        for candidate, score in vectors.most_similar(word, topn=topn)
+    ]
