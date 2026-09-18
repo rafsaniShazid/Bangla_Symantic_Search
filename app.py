@@ -1,4 +1,4 @@
-"""Streamlit search interface for the Bangla news retrieval system."""
+"""Streamlit interface for Bangla news semantic search."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from pathlib import Path
 import streamlit as st
 
 import config
+from src.comparison import compare_methods
 from src.system import (
     METHOD_CUSTOM_W2V,
     METHOD_HYBRID_CUSTOM,
@@ -72,9 +73,40 @@ def format_results(results):
 
     for column in ["score", "hybrid", "tfidf", "word2vec"]:
         if column in display.columns:
-            display[column] = display[column].map(lambda value: round(float(value), 4))
+            display[column] = display[column].map(
+                lambda value: round(float(value), 4)
+            )
 
     return display
+
+
+def render_comparison_grid(comparison, methods):
+    """Show up to three retrieval methods side-by-side per row."""
+
+    for start in range(0, len(methods), 3):
+        group = methods[start : start + 3]
+        columns = st.columns(len(group))
+
+        for column, method in zip(columns, group):
+            with column:
+                st.markdown(f"#### {METHOD_LABELS.get(method, method)}")
+                method_results = comparison[
+                    comparison["method"] == method
+                ][
+                    ["rank", "document_id", "title", "category", "score"]
+                ].copy()
+
+                if method_results.empty:
+                    st.info("No result returned.")
+                else:
+                    method_results["score"] = method_results["score"].map(
+                        lambda value: round(float(value), 4)
+                    )
+                    st.dataframe(
+                        method_results,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
 
 
 st.set_page_config(
@@ -135,12 +167,19 @@ except Exception as error:
 available_methods = system.available_methods()
 
 with st.sidebar:
-    st.header("Search settings")
+    st.caption(f"Documents loaded: {len(system.documents)}")
+    st.caption(f"Methods ready: {len(available_methods)}")
+
+search_tab, compare_tab = st.tabs(["Search", "Compare Models"])
+
+with search_tab:
+    st.subheader("Search")
 
     selected_method = st.selectbox(
         "Retrieval method",
         options=available_methods,
         format_func=lambda method: METHOD_LABELS.get(method, method),
+        key="search_method",
     )
 
     top_k = st.slider(
@@ -148,6 +187,7 @@ with st.sidebar:
         min_value=1,
         max_value=20,
         value=min(10, max(1, len(system.documents))),
+        key="search_top_k",
     )
 
     alpha = 0.5
@@ -159,48 +199,115 @@ with st.sidebar:
             value=0.5,
             step=0.05,
             help="Hybrid = alpha × TF-IDF + (1 - alpha) × Word2Vec",
+            key="search_alpha",
         )
 
-    st.caption(f"Documents loaded: {len(system.documents)}")
-    st.caption(f"Methods ready: {len(available_methods)}")
+    query = st.text_input(
+        "Search query",
+        placeholder="উদাহরণ: বাংলাদেশের অর্থনৈতিক অবস্থা",
+        key="search_query",
+    )
 
-query = st.text_input(
-    "Search query",
-    placeholder="উদাহরণ: বাংলাদেশের অর্থনৈতিক অবস্থা",
-)
-
-search_clicked = st.button(
-    "Search",
-    type="primary",
-    use_container_width=True,
-)
-
-if search_clicked:
-    if not query.strip():
-        st.warning("Enter a Bangla query first.")
-    else:
-        try:
-            results = system.search(
-                query=query,
-                method=selected_method,
-                top_k=top_k,
-                alpha=alpha if selected_method in HYBRID_METHODS else None,
-            )
-        except Exception as error:
-            st.error(f"Search failed: {error}")
+    if st.button(
+        "Search",
+        type="primary",
+        use_container_width=True,
+        key="search_button",
+    ):
+        if not query.strip():
+            st.warning("Enter a Bangla query first.")
         else:
-            st.subheader(
-                f"Results — {METHOD_LABELS.get(selected_method, selected_method)}"
-            )
-
-            if results.empty:
-                st.warning(
-                    "No result was returned. For Word2Vec, this can happen when "
-                    "all query words are outside the model vocabulary."
+            try:
+                results = system.search(
+                    query=query,
+                    method=selected_method,
+                    top_k=top_k,
+                    alpha=alpha if selected_method in HYBRID_METHODS else None,
                 )
+            except Exception as error:
+                st.error(f"Search failed: {error}")
             else:
-                st.dataframe(
-                    format_results(results),
-                    use_container_width=True,
-                    hide_index=True,
+                st.markdown(
+                    f"#### {METHOD_LABELS.get(selected_method, selected_method)}"
+                )
+
+                if results.empty:
+                    st.warning(
+                        "No result was returned. For Word2Vec, this can happen "
+                        "when all query words are outside the model vocabulary."
+                    )
+                else:
+                    st.dataframe(
+                        format_results(results),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+
+with compare_tab:
+    st.subheader("Compare Models")
+    st.caption(
+        "Run the same Bangla query through every model that is currently loaded."
+    )
+
+    compare_query = st.text_input(
+        "Comparison query",
+        placeholder="উদাহরণ: দেশের অর্থনৈতিক অবস্থা",
+        key="compare_query",
+    )
+
+    compare_top_k = st.slider(
+        "Results per method",
+        min_value=1,
+        max_value=10,
+        value=min(5, max(1, len(system.documents))),
+        key="compare_top_k",
+    )
+
+    compare_alpha = st.slider(
+        "Hybrid TF-IDF weight (alpha)",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.5,
+        step=0.05,
+        key="compare_alpha",
+    )
+
+    selected_compare_methods = st.multiselect(
+        "Methods to compare",
+        options=available_methods,
+        default=available_methods,
+        format_func=lambda method: METHOD_LABELS.get(method, method),
+    )
+
+    if len(available_methods) == 1:
+        st.info(
+            "Only TF-IDF is currently loaded. Add a custom or pretrained "
+            "Word2Vec model to compare lexical and semantic retrieval."
+        )
+
+    if st.button(
+        "Compare",
+        type="primary",
+        use_container_width=True,
+        key="compare_button",
+    ):
+        if not compare_query.strip():
+            st.warning("Enter a Bangla comparison query first.")
+        elif not selected_compare_methods:
+            st.warning("Select at least one retrieval method.")
+        else:
+            try:
+                comparison = compare_methods(
+                    system=system,
+                    query=compare_query,
+                    methods=selected_compare_methods,
+                    top_k=compare_top_k,
+                    alpha=compare_alpha,
+                )
+            except Exception as error:
+                st.error(f"Comparison failed: {error}")
+            else:
+                render_comparison_grid(
+                    comparison,
+                    selected_compare_methods,
                 )
