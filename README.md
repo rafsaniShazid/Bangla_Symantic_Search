@@ -84,3 +84,19 @@ python -m src.train_word2vec
 ```
 
 The model is saved to `models/word2vec_custom/bangla_news.model`. A pretrained model is not downloaded automatically; its path will be configured explicitly when the application integration is added.
+
+## Search application
+
+CLI search:
+
+```powershell
+python app.py --query "বাংলাদেশের বাজেট ঘোষণা" --method tfidf --top-k 5
+```
+
+Start the Streamlit interface after installing the project requirements:
+
+```powershell
+streamlit run app.py
+```
+
+The interface supports TF-IDF, custom Word2Vec, and pretrained Word2Vec selections. Word2Vec options require the corresponding model file; no pretrained model is downloaded automatically.

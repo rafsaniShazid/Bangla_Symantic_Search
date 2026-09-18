@@ -12,6 +12,7 @@ EVALUATION_DATA_DIR = DATA_DIR / "evaluation"
 MODELS_DIR = PROJECT_ROOT / "models"
 CUSTOM_W2V_DIR = MODELS_DIR / "word2vec_custom"
 PRETRAINED_W2V_DIR = MODELS_DIR / "word2vec_pretrained"
+PRETRAINED_W2V_PATH = PRETRAINED_W2V_DIR / "model.bin"
 
 DEFAULT_DATA_PATH = RAW_DATA_DIR / "news.csv"
 

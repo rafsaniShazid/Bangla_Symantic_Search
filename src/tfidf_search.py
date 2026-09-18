@@ -78,7 +78,7 @@ class TFIDFSearcher:
     def search(self, query: str, top_k: int = config.DEFAULT_TOP_K) -> pd.DataFrame:
         """Return the highest-scoring documents for ``query``."""
 
-        if self.documents is None or self.document_matrix is None:
+        if self.documents is None or self.document_matrix is None: 
             raise RuntimeError("Call fit() before search().")
         if top_k < 1:
             raise ValueError("top_k must be at least 1.")
