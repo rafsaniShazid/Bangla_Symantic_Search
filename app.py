@@ -8,6 +8,13 @@ import streamlit as st
 
 import config
 from src.comparison import compare_methods
+from src.embedding_explorer import (
+    CUSTOM_EMBEDDING,
+    PRETRAINED_EMBEDDING,
+    available_embedding_models,
+    embedding_neighbors,
+    embedding_summary,
+)
 from src.system import (
     METHOD_CUSTOM_W2V,
     METHOD_HYBRID_CUSTOM,
@@ -24,6 +31,11 @@ METHOD_LABELS = {
     METHOD_PRETRAINED_W2V: "Pretrained Word2Vec (Semantic)",
     METHOD_HYBRID_CUSTOM: "Hybrid: TF-IDF + Custom Word2Vec",
     METHOD_HYBRID_PRETRAINED: "Hybrid: TF-IDF + Pretrained Word2Vec",
+}
+
+EMBEDDING_LABELS = {
+    CUSTOM_EMBEDDING: "Custom Word2Vec",
+    PRETRAINED_EMBEDDING: "Pretrained Word2Vec",
 }
 
 HYBRID_METHODS = {
@@ -165,12 +177,15 @@ except Exception as error:
     st.stop()
 
 available_methods = system.available_methods()
+embedding_models = available_embedding_models(system)
 
 with st.sidebar:
     st.caption(f"Documents loaded: {len(system.documents)}")
     st.caption(f"Methods ready: {len(available_methods)}")
 
-search_tab, compare_tab = st.tabs(["Search", "Compare Models"])
+search_tab, compare_tab, embedding_tab = st.tabs(
+    ["Search", "Compare Models", "Embeddings"]
+)
 
 with search_tab:
     st.subheader("Search")
@@ -311,3 +326,78 @@ with compare_tab:
                     comparison,
                     selected_compare_methods,
                 )
+
+with embedding_tab:
+    st.subheader("Word2Vec Embedding Explorer")
+    st.caption(
+        "Inspect the nearest words learned by a loaded Word2Vec model."
+    )
+
+    if not embedding_models:
+        st.info(
+            "No Word2Vec model is currently loaded. Train the custom model "
+            "or provide a pretrained model path from the sidebar."
+        )
+    else:
+        selected_embedding = st.selectbox(
+            "Embedding model",
+            options=list(embedding_models.keys()),
+            format_func=lambda name: EMBEDDING_LABELS.get(name, name),
+            key="embedding_model",
+        )
+
+        selected_model = embedding_models[selected_embedding]
+        summary = embedding_summary(selected_model)
+
+        metric_1, metric_2 = st.columns(2)
+        metric_1.metric(
+            "Vocabulary size",
+            f"{summary['vocabulary_size']:,}",
+        )
+        metric_2.metric(
+            "Vector dimension",
+            summary["vector_size"],
+        )
+
+        embedding_word = st.text_input(
+            "Bangla word",
+            placeholder="উদাহরণ: অর্থনীতি",
+            key="embedding_word",
+        )
+
+        neighbor_count = st.slider(
+            "Number of similar words",
+            min_value=1,
+            max_value=20,
+            value=10,
+            key="embedding_topn",
+        )
+
+        if st.button(
+            "Find similar words",
+            type="primary",
+            use_container_width=True,
+            key="embedding_button",
+        ):
+            if not embedding_word.strip():
+                st.warning("Enter a Bangla word first.")
+            else:
+                neighbors = embedding_neighbors(
+                    selected_model,
+                    embedding_word,
+                    topn=neighbor_count,
+                )
+
+                if neighbors.empty:
+                    st.warning(
+                        "The word was not found in this Word2Vec vocabulary."
+                    )
+                else:
+                    neighbors["similarity"] = neighbors["similarity"].map(
+                        lambda value: round(float(value), 4)
+                    )
+                    st.dataframe(
+                        neighbors,
+                        use_container_width=True,
+                        hide_index=True,
+                    )
