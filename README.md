@@ -1,86 +1,60 @@
 # Bangla News Semantic Search
 
-This repository will compare explainable Bangla news retrieval using TF-IDF, pretrained Word2Vec, and custom-trained Word2Vec. The project is being built in phases so the shared dataset contract is verified before retrieval and evaluation are added.
+Search Bangla news with three methods: **TF-IDF**, **custom Word2Vec**, and a **hybrid** of their scores. The Streamlit app has Search and Compare tabs.
 
-## Phase 1: Dataset Loader
-
-The current implementation provides the project structure, a reusable CSV loader in `src/data_loader.py`, and explainable TF-IDF and mean-pooled Word2Vec search modules. Bangla linguistic preprocessing remains a shared integration step.
-
-### Expected dataset
-
-Place the real dataset at:
+## Pipeline
 
 ```text
-data/raw/news.csv
+News CSV → Unicode normalization, cleaning, tokenization, stopword removal
+         ├→ TF-IDF (unigrams and bigrams) → cosine similarity ─┐
+         └→ custom Skip-gram Word2Vec → mean pooling → cosine similarity ─┤
+                                           weighted hybrid score ←┘
+                                                      ↓
+                                            Top-K and comparison
+                                                      ↓
+                                   Precision@K, Recall@K, MRR when judged
 ```
 
-The default logical fields are:
-
-| Logical field | Default CSV column | Required |
-| --- | --- | --- |
-| `title` | `title` | Yes |
-| `content` | `content` | Yes |
-| `category` | `category` | Yes |
-| source ID | `id` | No |
-
-The loader supports renamed source columns through the `column_mapping` argument. It returns this stable contract for every document:
+`src/preprocessing.py` is shared by training and both searchers. The hybrid is **score fusion**, not a trained model:
 
 ```text
-document_id, title, content, category, text
+hybrid_score = alpha * tfidf_score + (1 - alpha) * word2vec_score
 ```
 
-`text` is the unprocessed combination of title and content. The downloaded corpus uses `text` instead of `content`; the loader recognizes this through the configured content alias. Unicode normalization, tokenization, punctuation handling, and stopword removal belong to the shared preprocessing phase.
+The default `alpha` is `0.5`. If a query has no known words for one method, hybrid uses the available method's score.
 
-### Document IDs
+## Setup and use
 
-When an `id` column exists, its non-empty unique values are preserved. Otherwise, the loader assigns 1-based IDs after removing invalid and duplicate rows. These IDs are the canonical keys for future evaluation annotations.
-
-### Load data
-
-```python
-from src.data_loader import load_dataset
-
-documents, statistics = load_dataset()
-print(statistics)
-print(documents.head())
-```
-
-The loader removes rows with an empty title or content, removes duplicate title/content pairs while retaining the first row, and reports article count, category distribution, and average whitespace-token length.
-
-No real dataset or evaluation result is fabricated by this project. Any test fixture used later will be explicitly labeled demo data.
-
-## Development
-
-Create and activate a virtual environment, then install dependencies:
+Use the Python 3.12 environment from `environment.yml`:
 
 ```powershell
-python -m venv .venv
-.venv\\Scripts\\Activate.ps1
-pip install -r requirements.txt
+conda env create -f environment.yml
+conda activate nlp312
 ```
 
-Run the focused tests:
+Place the news corpus at `data/raw/news.csv`. It needs `title`, `category`, and either `content` or `text`; `id` is optional. The loader removes empty and duplicate articles and returns `document_id`, `title`, `content`, `category`, and combined `text`. The raw CSV and trained model are ignored by Git.
 
-```powershell
-pytest tests/test_data_loader.py tests/test_tfidf_search.py tests/test_word2vec_search.py
-```
-
-## Planned phases
-
-1. Dataset contract and loader
-2. Shared Bangla preprocessing
-3. TF-IDF baseline and search tests
-4. Custom and pretrained Word2Vec search
-5. Evaluation, comparison, error analysis, visualization, and application interface
-
-## Retrieval modules
-
-`src/tfidf_search.py` provides `TFIDFSearcher`, which fits a scikit-learn TF-IDF matrix and ranks the shared document contract with cosine similarity. `src/word2vec_search.py` provides mean-pooled Word2Vec vectors, OOV-safe query handling, and the same ranked result columns.
-
-Train the custom model with:
+Train the custom model and start the app:
 
 ```powershell
 python -m src.train_word2vec
+python -m streamlit run app.py
 ```
 
-The model is saved to `models/word2vec_custom/bangla_news.model`. A pretrained model is not downloaded automatically; its path will be configured explicitly when the application integration is added.
+The model is saved to `models/word2vec_custom/bangla_news.model`. Search takes one query, one method, Top-K, and an alpha slider for Hybrid. Compare runs the same query through all three methods.
+
+Current settings in `config.py`: TF-IDF `ngram_range=(1, 2)`, Word2Vec `vector_size=100`, `window=5`, `min_count=2`, `sg=1` (Skip-gram), `epochs=10`, and default Top-K `10`.
+
+## Evaluation and tests
+
+`data/evaluation/qrels.csv` contains prepared queries. Add real `document_id` values to `relevant_document_ids`, separated by `|`. Its judgements are currently blank, so this project does not claim measured model performance. The backend skips unjudged queries:
+
+```python
+from src.evaluation import evaluate_system, load_evaluation_queries
+from src.system import build_search_system
+
+results = evaluate_system(build_search_system(), load_evaluation_queries(), k=5)
+print(results)  # Empty until real relevance judgements are added.
+```
+
+Run the complete suite with `python -m pytest -q`.

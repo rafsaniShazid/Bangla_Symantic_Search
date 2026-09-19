@@ -2,8 +2,12 @@
 
 import unittest
 
+import pandas as pd
+
 from src.evaluation import (
     evaluate_query,
+    evaluate_system,
+    load_evaluation_queries,
     mean_evaluation,
     precision_at_k,
     recall_at_k,
@@ -102,6 +106,24 @@ class TestEvaluationMetrics(unittest.TestCase):
     def test_invalid_k_is_rejected(self):
         with self.assertRaises(ValueError):
             precision_at_k([1], [1], k=0)
+
+
+def test_project_qrels_have_no_fabricated_judgements():
+    queries = load_evaluation_queries()
+    assert len(queries) == 24
+    assert queries["relevant_ids"].map(bool).sum() == 0
+
+
+def test_unjudged_queries_produce_no_performance_numbers():
+    class UnusedSystem:
+        def available_methods(self):
+            return ["tfidf", "word2vec", "hybrid"]
+
+        def search(self, *args, **kwargs):
+            raise AssertionError("Unjudged queries must be skipped")
+
+    queries = pd.DataFrame([{"query": "বাজেট", "relevant_ids": []}])
+    assert evaluate_system(UnusedSystem(), queries, k=5).empty
 
 
 if __name__ == "__main__":

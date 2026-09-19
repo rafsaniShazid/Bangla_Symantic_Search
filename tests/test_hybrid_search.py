@@ -98,7 +98,6 @@ class TestHybridSearch(unittest.TestCase):
         searcher = HybridSearcher(
             StaticSearcher(self.tfidf),
             StaticSearcher(self.word2vec),
-            alpha=0.5,
         )
 
         results = searcher.search("economy query", top_k=2)
@@ -117,13 +116,24 @@ class TestHybridSearch(unittest.TestCase):
             ],
         )
 
+    def test_hybrid_ranks_before_taking_top_k(self):
+        searcher = HybridSearcher(
+            StaticSearcher(self.tfidf),
+            StaticSearcher(self.word2vec),
+        )
+
+        # The TF-IDF and Word2Vec top-1 documents differ. Using both full
+        # rankings makes document 1 the highest-scoring hybrid result.
+        results = searcher.search("economy query", top_k=1)
+        self.assertEqual(results.iloc[0]["document_id"], 1)
+
     def test_alpha_must_be_between_zero_and_one(self):
+        searcher = HybridSearcher(
+            StaticSearcher(self.tfidf),
+            StaticSearcher(self.word2vec),
+        )
         with self.assertRaises(ValueError):
-            HybridSearcher(
-                StaticSearcher(self.tfidf),
-                StaticSearcher(self.word2vec),
-                alpha=1.2,
-            )
+            searcher.search("economy query", alpha=1.2)
 
     def test_empty_query_returns_empty_result(self):
         searcher = HybridSearcher(

@@ -6,7 +6,5 @@ __pycache__/
 # Real datasets and trained models are not committed by default.
 data/raw/*.csv
 models/word2vec_custom/*
-models/word2vec_pretrained/*
 !data/raw/.gitkeep
 !models/word2vec_custom/.gitkeep
-!models/word2vec_pretrained/.gitkeep

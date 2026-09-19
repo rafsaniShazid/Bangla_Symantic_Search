@@ -37,10 +37,25 @@ def test_search_handles_empty_query(documents: pd.DataFrame) -> None:
 
 
 def test_fit_requires_contract_columns() -> None:
-    with pytest.raises(ValueError, match="document_id, title, and category"):
+    with pytest.raises(ValueError, match="document_id, title, category, and text"):
         TFIDFSearcher().fit(pd.DataFrame({"text": ["সংবাদ"]}))
 
 
 def test_search_requires_fit() -> None:
     with pytest.raises(RuntimeError, match="Call fit"):
         TFIDFSearcher().search("সংবাদ")
+
+
+def test_bangla_words_and_bigrams_survive_vectorization(documents: pd.DataFrame) -> None:
+    searcher = TFIDFSearcher().fit(documents)
+    vocabulary = searcher.vectorizer.vocabulary_
+
+    assert "বাংলাদেশ" in vocabulary
+    assert "বাজেট" in vocabulary
+    assert "বাংলাদেশ বাজেট" in vocabulary
+    assert searcher.search("এই বাংলাদেশ এবং বাজেট", top_k=1)["document_id"].tolist() == ["a"]
+
+
+def test_unknown_query_returns_no_ranked_results(documents: pd.DataFrame) -> None:
+    searcher = TFIDFSearcher().fit(documents)
+    assert searcher.search("সম্পূর্ণ অজানা শব্দ").empty

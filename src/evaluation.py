@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from pathlib import Path
 from statistics import mean
+
+import pandas as pd
+
+import config
 
 
 def _validate_k(k: int) -> int:
@@ -112,3 +117,54 @@ def mean_evaluation(
             metrics["reciprocal_rank"] for metrics in query_metrics
         ),
     }
+
+
+def load_evaluation_queries(
+    path: str | Path = config.EVALUATION_DATA_DIR / "qrels.csv",
+) -> pd.DataFrame:
+    """Load prepared queries and their manually judged document IDs."""
+
+    queries = pd.read_csv(path, dtype=str, keep_default_na=False)
+    columns = ["query_id", "query", "query_type", "relevant_document_ids"]
+    if not set(columns).issubset(queries.columns):
+        raise ValueError(
+            "Evaluation CSV needs query_id, query, query_type, "
+            "and relevant_document_ids."
+        )
+    queries = queries[columns].copy()
+    for column in columns:
+        queries[column] = queries[column].str.strip()
+    if queries["query_id"].eq("").any() or queries["query_id"].duplicated().any():
+        raise ValueError("Evaluation query IDs must be nonempty and unique.")
+    if queries["query"].eq("").any():
+        raise ValueError("Evaluation queries must be nonempty.")
+
+    queries["relevant_ids"] = queries["relevant_document_ids"].map(
+        lambda value: [item.strip() for item in value.split("|") if item.strip()]
+    )
+    return queries
+
+
+def evaluate_system(
+    system, queries: pd.DataFrame, k: int = 5, alpha: float = 0.5
+) -> pd.DataFrame:
+    """Average metrics for each method over queries with real judgements."""
+
+    _validate_k(k)
+    judged = queries[queries["relevant_ids"].map(bool)]
+    rows = []
+    for method in system.available_methods():
+        rankings = []
+        for _, query in judged.iterrows():
+            results = system.search(
+                query["query"], method=method, top_k=k, alpha=alpha
+            )
+            rankings.append((results["document_id"], query["relevant_ids"]))
+        if rankings:
+            rows.append(
+                {"method": method, "queries": len(rankings), **mean_evaluation(rankings, k)}
+            )
+    return pd.DataFrame(
+        rows,
+        columns=["method", "queries", f"precision@{k}", f"recall@{k}", "mrr"],
+    )
