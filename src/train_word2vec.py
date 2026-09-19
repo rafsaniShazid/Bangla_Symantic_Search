@@ -3,38 +3,23 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import config
 from src.data_loader import load_dataset
-
-Tokenize = Callable[[str], Sequence[str]]
-
-
-def _load_tokenizer() -> Tokenize:
-    """Use the shared Bangla tokenizer when the teammate's module is available."""
-
-    try:
-        from src.preprocessing import tokenize_bangla
-
-        return tokenize_bangla
-    except ImportError:
-        return lambda text: text.split()
+from src.preprocessing import tokenize_bangla
 
 
 def train_custom_word2vec(
     data_path: str | Path | None = None,
     output_path: str | Path = config.CUSTOM_W2V_PATH,
-    tokenizer: Tokenize | None = None,
 ):
     """Train a reproducible custom Word2Vec model and save it to disk."""
 
     from gensim.models import Word2Vec
 
     documents, statistics = load_dataset(data_path)
-    tokenize = tokenizer or _load_tokenizer()
-    sentences = [list(tokenize(text)) for text in documents["text"]]
+    sentences = [tokenize_bangla(text) for text in documents["text"]]
     sentences = [sentence for sentence in sentences if sentence]
     if not sentences:
         raise ValueError("The corpus produced no tokenized documents.")
@@ -56,11 +41,6 @@ def train_custom_word2vec(
     print(f"Articles used: {statistics.article_count}")
     print(f"Vocabulary size: {len(model.wv.key_to_index)}")
     print(f"Embedding dimension: {model.wv.vector_size}")
-    sample_words = list(model.wv.key_to_index)[:5]
-    print(f"Sample vocabulary: {sample_words}")
-    for word in sample_words[:3]:
-        similar = model.wv.most_similar(word, topn=3)
-        print(f"Similar to {word}: {similar}")
     return model
 
 

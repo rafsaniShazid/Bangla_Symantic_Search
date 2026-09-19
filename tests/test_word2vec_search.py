@@ -5,7 +5,6 @@ import pytest
 from src.word2vec_search import (
     Word2VecSearcher,
     get_document_vector,
-    get_query_vector,
 )
 
 
@@ -40,7 +39,7 @@ def test_mean_pooling_ignores_oov_tokens() -> None:
     vector = get_document_vector(["বাংলাদেশ", "অজানা"], FakeModel())
 
     assert np.allclose(vector, [1.0, 0.0])
-    assert get_query_vector(["অজানা"], FakeModel()) is None
+    assert get_document_vector(["অজানা"], FakeModel()) is None
 
 
 def test_word2vec_search_ranks_by_cosine_similarity(documents: pd.DataFrame) -> None:
