@@ -81,11 +81,15 @@ def run_streamlit(data_path: str | Path | None = None) -> None:
     documents, statistics = load_documents(str(data_path) if data_path else None)
     st.sidebar.metric("Articles", statistics.article_count)
     st.sidebar.metric("Categories", statistics.category_count)
-    method = st.sidebar.selectbox(
-        "Retrieval method",
-        options=list(METHOD_LABELS),
-        format_func=METHOD_LABELS.get,
-    )
+    use_word2vec = st.sidebar.toggle("Use Word2Vec", value=False)
+    if use_word2vec:
+        method = st.sidebar.selectbox(
+            "Word2Vec model",
+            options=["custom_w2v", "pretrained_w2v"],
+            format_func=METHOD_LABELS.get,
+        )
+    else:
+        method = "tfidf"
     top_k = st.sidebar.selectbox("Top results", options=[1, 5, 10], index=2)
     query = st.text_input("Search query", placeholder="বাংলাদেশের নতুন বাজেট ঘোষণা")
 
